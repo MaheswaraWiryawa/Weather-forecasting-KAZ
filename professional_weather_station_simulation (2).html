@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroMetrics Research Weather Suite</title>
+    <!-- Tailwind CSS for modern responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for weather and telemetry icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for real-time telemetry charting -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .glass-panel-dark {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        /* Custom scrollbar for telemetry logs */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 9999px; }
+    </style>
+</head>
+<body id="app-body" class="h-full transition-colors duration-1000 bg-slate-950 text-slate-100 overflow-x-hidden flex flex-col">
+
+    <header class="glass-panel border-b border-white/10 px-4 lg:px-8 py-3.5 flex items-center justify-between sticky top-0 z-50">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/10">
+                <i class="fa-solid fa-satellite-dish text-lg animate-pulse"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base lg:text-lg tracking-tight flex items-center gap-2">
+                    AeroMetrics <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">Research Suite v2.5</span>
+                </h1>
+                <p class="text-xs text-slate-400">Professional Sensor Array & Global Atmospheric Simulation</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <div class="relative hidden md:block w-64">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <i class="fa-solid fa-earth-americas text-xs"></i>
+                </div>
+                <input type="text" id="global-search-input" onkeypress="handleSearchKeyPress(event)" placeholder="Search location (e.g., Tokyo, London)..." class="w-full pl-8 pr-8 py-1.5 rounded-lg bg-white/10 border border-white/15 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 transition-all">
+                <button onclick="executeGlobalSearch()" class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-cyan-400 hover:text-cyan-300">
+                    <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                </button>
+            </div>
+
+            <div class="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-lg glass-panel text-xs">
+                <span id="time-badge-icon" class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <span id="current-time-label" class="font-medium text-slate-300">Loading Time...</span>
+            </div>
+            <button onclick="openTimeOverrideModal()" class="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-xs font-medium flex items-center gap-1.5 border border-white/10">
+                <i class="fa-solid fa-clock-rotate-left text-cyan-400"></i>
+                <span>Simulate Time</span>
+            </button>
+            <div class="h-6 w-[1px] bg-white/10 hidden sm:block"></div>
+            <button onclick="toggleSystemState()" id="power-btn" class="px-3.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-power-off"></i>
+                <span id="power-txt">System Active</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 flex flex-col gap-6">
+        
+        <div class="md:hidden flex items-center gap-2">
+            <div class="relative flex-1">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <i class="fa-solid fa-earth-americas text-xs"></i>
+                </div>
+                <input type="text" id="global-search-input-mobile" placeholder="Search location (e.g., Tokyo, London)..." class="w-full pl-8 pr-8 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/50">
+            </div>
+            <button onclick="executeGlobalSearchMobile()" class="px-3.5 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 text-xs font-semibold">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="flex items-center justify-between overflow-x-auto pb-1 border-b border-white/10">
+            <div class="flex space-x-2">
+                <button onclick="switchTab('live')" id="tab-btn-live" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-gauge-high"></i> Sensor Telemetry & Current
+                </button>
+                <button onclick="switchTab('history')" id="tab-btn-history" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-2 border border-transparent">
+                    <i class="fa-solid fa-database"></i> Past Records & Archive
+                </button>
+                <button onclick="switchTab('prediction')" id="tab-btn-prediction" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-2 border border-transparent">
+                    <i class="fa-solid fa-brain"></i> AI Prediction & Forecasting
+                </button>
+            </div>
+            <div class="hidden md:flex items-center text-xs text-slate-400 gap-3">
+                <span>Theme Mode: <strong id="current-theme-name" class="text-cyan-300">Midnight</strong></span>
+                <span>•</span>
+                <span>Data Rate: <strong class="text-emerald-400">1.0s / Pulse</strong></span>
+            </div>
+        </div>
+
+        <!-- TAB 1: LIVE SENSORS & CURRENT WEATHER -->
+        <section id="tab-content-live" class="flex flex-col gap-6">
+            
+            <!-- Hero Weather & Current Snapshot Banner -->
+            <div class="glass-panel-dark rounded-2xl p-6 lg:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden shadow-2xl">
+                <div class="absolute -right-16 -bottom-16 w-64 h-64 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none"></div>
+                
+                <div class="flex items-center gap-6 z-10">
+                    <div id="hero-weather-icon-box" class="w-20 h-20 rounded-2xl bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center text-cyan-300 text-4xl shadow-inner">
+                        <i id="hero-weather-icon" class="fa-solid fa-cloud-sun"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-xs uppercase tracking-widest font-bold px-2.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-400/30" id="hero-location-name"><i class="fa-solid fa-location-dot mr-1"></i> Geneva Research Observatory</span>
+                            <span class="text-xs uppercase tracking-widest font-bold px-2 py-0.5 rounded bg-white/10 text-slate-300" id="hero-condition-badge">Stable Conditions</span>
+                        </div>
+                        <h2 class="text-4xl lg:text-5xl font-extrabold tracking-tight mt-2 flex items-baseline gap-2">
+                            <span id="hero-temp">24.5</span><span class="text-2xl font-normal text-slate-300">°C</span>
+                        </h2>
+                        <p class="text-slate-300 text-sm mt-1" id="hero-description">Calm atmospheric state with light breezes and nominal relative humidity.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full md:w-auto z-10">
+                    <div class="glass-panel p-3.5 rounded-xl flex flex-col">
+                        <span class="text-xs text-slate-400 flex items-center gap-1"><i class="fa-solid fa-droplet text-blue-400"></i> Humidity</span>
+                        <span class="text-lg font-bold mt-1" id="hero-humidity">64%</span>
+                        <span class="text-[10px] text-emerald-400 mt-0.5">Capacitive Film OK</span>
+                    </div>
+                    <div class="glass-panel p-3.5 rounded-xl flex flex-col">
+                        <span class="text-xs text-slate-400 flex items-center gap-1"><i class="fa-solid fa-gauge text-purple-400"></i> Barometer</span>
+                        <span class="text-lg font-bold mt-1" id="hero-pressure">1013.2</span>
+                        <span class="text-[10px] text-slate-400 mt-0.5">hPa Piezoresistive</span>
+                    </div>
+                    <div class="glass-panel p-3.5 rounded-xl flex flex-col">
+                        <span class="text-xs text-slate-400 flex items-center gap-1"><i class="fa-solid fa-wind text-cyan-400"></i> Wind Vector</span>
+                        <span class="text-lg font-bold mt-1"><span id="hero-wind-speed">4.2</span> <span class="text-xs font-normal">m/s</span></span>
+                        <span class="text-[10px] text-cyan-300 mt-0.5" id="hero-wind-dir">NE (45°)</span>
+                    </div>
+                    <div class="glass-panel p-3.5 rounded-xl flex flex-col">
+                        <span class="text-xs text-slate-400 flex items-center gap-1"><i class="fa-solid fa-cloud-rain text-blue-300"></i> Rain Rate</span>
+                        <span class="text-lg font-bold mt-1"><span id="hero-rain">0.0</span> <span class="text-xs font-normal">mm/h</span></span>
+                        <span class="text-[10px] text-slate-400 mt-0.5">Tipping Bucket</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5 Professional Sensors Grid -->
+            <div>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-microchip text-cyan-400"></i> Active Research Sensor Telemetry (5 Core Modules)
+                    </h3>
+                    <span class="text-xs text-slate-400">Live data streaming via SDI-12 & MQTT</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    
+                    <!-- Sensor 1: Platinum RTD Temperature -->
+                    <div class="glass-panel-dark rounded-2xl p-5 flex flex-col justify-between hover:border-cyan-500/40 transition-all group">
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-orange-500/20 text-orange-300 border border-orange-500/30">Thermodynamic</span>
+                                <span class="flex items-center gap-1.5 text-xs text-emerald-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Online</span>
+                            </div>
+                            <h4 class="font-bold text-base mt-3 flex items-center gap-2">
+                                <i class="fa-solid fa-temperature-high text-orange-400"></i> Platinum RTD (PT100)
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1">Measures ambient thermal state via precise electrical resistance shifts in platinum wire.</p>
+                        </div>
+                        <div class="mt-6 pt-4 border-t border-white/10 flex items-end justify-between">
+                            <div>
+                                <span class="text-xs text-slate-400 block">Current Output</span>
+                                <span class="text-2xl font-extrabold text-orange-300" id="sensor-temp-val">24.50 °C</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[10px] text-slate-400 block">Resistance</span>
+                                <span class="text-sm font-semibold text-slate-200" id="sensor-temp-res">109.52 Ω</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sensor 2: Capacitive Hygrometer -->
+                    <div class="glass-panel-dark rounded-2xl p-5 flex flex-col justify-between hover:border-cyan-500/40 transition-all group">
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/30">Hygrometry</span>
+                                <span class="flex items-center gap-1.5 text-xs text-emerald-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Online</span>
+                            </div>
+                            <h4 class="font-bold text-base mt-3 flex items-center gap-2">
+                                <i class="fa-solid fa-droplet text-blue-400"></i> Capacitive Hygrometer
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1">Tracks moisture-sensitive thin-film dielectric capacitance for relative humidity and dew point.</p>
+                        </div>
+                        <div class="mt-6 pt-4 border-t border-white/10 flex items-end justify-between">
+                            <div>
+                                <span class="text-xs text-slate-400 block">Relative Humidity</span>
+                                <span class="text-2xl font-extrabold text-blue-300" id="sensor-hum-val">64.0 %</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[10px] text-slate-400 block">Dew Point</span>
+                                <span class="text-sm font-semibold text-slate-200" id="sensor-dew-val">17.2 °C</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sensor 3: Piezoresistive Barometer -->
+                    <div class="glass-panel-dark rounded-2xl p-5 flex flex-col justify-between hover:border-cyan-500/40 transition-all group">
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30">Barometric</span>
+                                <span class="flex items-center gap-1.5 text-xs text-emerald-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Online</span>
+                            </div>
+                            <h4 class="font-bold text-base mt-3 flex items-center gap-2">
+                                <i class="fa-solid fa-gauge-high text-purple-400"></i> Piezoresistive Barometer
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1">Measures silicon diaphragm micro-strain from air pressure to evaluate barometric tendencies.</p>
+                        </div>
+                        <div class="mt-6 pt-4 border-t border-white/10 flex items-end justify-between">
+                            <div>
+                                <span class="text-xs text-slate-400 block">Atmospheric Pressure</span>
+                                <span class="text-2xl font-extrabold text-purple-300" id="sensor-baro-val">1013.2 hPa</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[10px] text-slate-400 block">Tendency (3h)</span>
+                                <span class="text-sm font-semibold text-emerald-400" id="sensor-baro-trend">+0.4 Steady</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sensor 4: Ultrasonic Anemometer -->
+                    <div class="glass-panel-dark rounded-2xl p-5 flex flex-col justify-between hover:border-cyan-500/40 transition-all group">
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Kinematic</span>
+                                <span class="flex items-center gap-1.5 text-xs text-emerald-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Online</span>
+                            </div>
+                            <h4 class="font-bold text-base mt-3 flex items-center gap-2">
+                                <i class="fa-solid fa-wind text-cyan-400"></i> Ultrasonic Anemometer
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1">Zero moving parts; calculates sound pulse transit time variance for instantaneous vector winds ($u, v$).</p>
+                        </div>
+                        <div class="mt-6 pt-4 border-t border-white/10 flex items-end justify-between">
+                            <div>
+                                <span class="text-xs text-slate-400 block">Wind Velocity</span>
+                                <span class="text-2xl font-extrabold text-cyan-300"><span id="sensor-wind-val">4.2</span> <span class="text-xs font-normal">m/s</span></span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[10px] text-slate-400 block">Direction Vector</span>
+                                <span class="text-sm font-semibold text-slate-200" id="sensor-dir-val">45° (NE)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sensor 5: Tipping Bucket Rain Gauge -->
+                    <div class="glass-panel-dark rounded-2xl p-5 flex flex-col justify-between hover:border-cyan-500/40 transition-all group">
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Hydrological</span>
+                                <span class="flex items-center gap-1.5 text-xs text-emerald-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Online</span>
+                            </div>
+                            <h4 class="font-bold text-base mt-3 flex items-center gap-2">
+                                <i class="fa-solid fa-cloud-rain text-indigo-400"></i> Tipping Bucket Gauge
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1">Calibrated see-saw bucket measures precipitation volume via magnetic reed switch pulse counts.</p>
+                        </div>
+                        <div class="mt-6 pt-4 border-t border-white/10 flex items-end justify-between">
+                            <div>
+                                <span class="text-xs text-slate-400 block">Precipitation Rate</span>
+                                <span class="text-2xl font-extrabold text-indigo-300"><span id="sensor-rain-val">0.0</span> <span class="text-xs font-normal">mm/h</span></span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[10px] text-slate-400 block">Accumulated (24h)</span>
+                                <span class="text-sm font-semibold text-slate-200" id="sensor-rain-acc">1.2 mm</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sensor System Control / Diagnostics Card -->
+                    <div class="glass-panel-dark rounded-2xl p-5 flex flex-col justify-between border-dashed border-white/20">
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Diagnostics</span>
+                                <span class="text-xs text-slate-400">Node Cluster #4</span>
+                            </div>
+                            <h4 class="font-bold text-base mt-3 flex items-center gap-2">
+                                <i class="fa-solid fa-server text-emerald-400"></i> Edge Data Logger
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1">Real-time Kalman filtering and telemetry packet transmission over secure cellular gateway.</p>
+                        </div>
+                        <div class="mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
+                            <div>
+                                <span class="text-xs text-slate-400 block">Packet Integrity</span>
+                                <span class="text-sm font-bold text-emerald-400">99.98% CRC Valid</span>
+                            </div>
+                            <button onclick="triggerSensorSpike()" class="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/30 text-xs font-semibold transition-all">
+                                Inject Weather Event
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Real-time Chart Telemetry Section -->
+            <div class="glass-panel-dark rounded-2xl p-6">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                    <div>
+                        <h3 class="font-bold text-base flex items-center gap-2">
+                            <i class="fa-solid fa-chart-line text-cyan-400"></i> Real-Time Meteorological Telemetry Stream
+                        </h3>
+                        <p class="text-xs text-slate-400">Live streaming time-series graph of temperature and barometric fluctuation.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="inline-block w-3 h-3 rounded-full bg-orange-400"></span> <span class="text-xs text-slate-300">Temp (°C)</span>
+                        <span class="inline-block w-3 h-3 rounded-full bg-purple-400 ml-3"></span> <span class="text-xs text-slate-300">Pressure (hPa / 10)</span>
+                    </div>
+                </div>
+                <div class="w-full h-64 relative">
+                    <canvas id="telemetryChart"></canvas>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- TAB 2: PAST RECORDS & ARCHIVE -->
+        <section id="tab-content-history" class="hidden flex-col gap-6">
+            <div class="glass-panel-dark rounded-2xl p-6 lg:p-8 flex flex-col gap-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-xl font-bold flex items-center gap-2">
+                            <i class="fa-solid fa-database text-cyan-400"></i> Meteorological Past Records & Historical Archive
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-1">Aggregated sensor logs across recent operational cycles and extreme weather logs.</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button onclick="exportHistoryCSV()" class="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold flex items-center gap-2 border border-white/10 transition-all">
+                            <i class="fa-solid fa-download text-cyan-400"></i> Export CSV Log
+                        </button>
+                        <button onclick="clearHistoryLog()" class="px-3.5 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-semibold flex items-center gap-2 border border-red-500/30 transition-all">
+                            <i class="fa-solid fa-trash-can"></i> Clear Archive
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Archive Stats Summary -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
+                        <div>
+                            <span class="text-xs text-slate-400">24h Peak Temperature</span>
+                            <h4 class="text-xl font-bold text-orange-300 mt-0.5" id="archive-peak-temp">28.4 °C</h4>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-300 flex items-center justify-center">
+                            <i class="fa-solid fa-temperature-arrow-up text-lg"></i>
+                        </div>
+                    </div>
+                    <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
+                        <div>
+                            <span class="text-xs text-slate-400">24h Minimum Barometer</span>
+                            <h4 class="text-xl font-bold text-purple-300 mt-0.5" id="archive-min-baro">1008.5 hPa</h4>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center">
+                            <i class="fa-solid fa-arrow-trend-down text-lg"></i>
+                        </div>
+                    </div>
+                    <div class="glass-panel p-4 rounded-xl flex items-center justify-between">
+                        <div>
+                            <span class="text-xs text-slate-400">Total Precipitation (24h)</span>
+                            <h4 class="text-xl font-bold text-blue-300 mt-0.5" id="archive-total-rain">4.8 mm</h4>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center">
+                            <i class="fa-solid fa-cloud-showers-heavy text-lg"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History Logs Table -->
+                <div class="overflow-x-auto rounded-xl border border-white/10">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-white/5 border-b border-white/10 text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                                <th class="p-3.5">Timestamp</th>
+                                <th class="p-3.5">Temp (°C)</th>
+                                <th class="p-3.5">Humidity (%)</th>
+                                <th class="p-3.5">Pressure (hPa)</th>
+                                <th class="p-3.5">Wind (m/s)</th>
+                                <th class="p-3.5">Precip. (mm)</th>
+                                <th class="p-3.5">Condition Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body" class="divide-y divide-white/5 text-xs text-slate-300">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 3: PREDICTION SYSTEM -->
+        <section id="tab-content-prediction" class="hidden flex-col gap-6">
+            <div class="glass-panel-dark rounded-2xl p-6 lg:p-8 flex flex-col gap-6">
+                <div>
+                    <h3 class="text-xl font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-brain text-cyan-400"></i> Numerical Weather Prediction (NWP) & Forecasting Engine
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">Physics-based and statistical ensemble model evaluating sensor derivatives to predict short-term atmospheric shifts.</p>
+                </div>
+
+                <!-- Prediction Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    
+                    <!-- 3-Hour Short Term -->
+                    <div class="glass-panel rounded-2xl p-5 flex flex-col justify-between border-l-4 border-cyan-400">
+                        <div>
+                            <div class="flex items-center justify-between text-xs text-slate-400">
+                                <span>+3 Hours Forecast</span>
+                                <span class="text-cyan-300 font-semibold">High Confidence</span>
+                            </div>
+                            <div class="flex items-center gap-3 my-4">
+                                <div class="w-12 h-12 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center text-xl">
+                                    <i id="pred-3h-icon" class="fa-solid fa-cloud-sun"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-2xl font-bold" id="pred-3h-temp">25.2 °C</h4>
+                                    <p class="text-xs text-slate-300 font-medium" id="pred-3h-desc">Slight warming trend with stable barometrics.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-[11px] text-slate-400 pt-3 border-t border-white/10 flex items-center justify-between">
+                            <span>Expected Precip: 0.0 mm</span>
+                            <span>Wind shift: ENE</span>
+                        </div>
+                    </div>
+
+                    <!-- 12-Hour Medium Term -->
+                    <div class="glass-panel rounded-2xl p-5 flex flex-col justify-between border-l-4 border-purple-400">
+                        <div>
+                            <div class="flex items-center justify-between text-xs text-slate-400">
+                                <span>+12 Hours Forecast</span>
+                                <span class="text-purple-300 font-semibold">Ensemble Model</span>
+                            </div>
+                            <div class="flex items-center gap-3 my-4">
+                                <div class="w-12 h-12 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center text-xl">
+                                    <i id="pred-12h-icon" class="fa-solid fa-cloud-rain"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-2xl font-bold" id="pred-12h-temp">21.8 °C</h4>
+                                    <p class="text-xs text-slate-300 font-medium" id="pred-12h-desc">Barometric drop indicating incoming frontal precipitation.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-[11px] text-slate-400 pt-3 border-t border-white/10 flex items-center justify-between">
+                            <span>Expected Precip: 3.5 mm</span>
+                            <span>Prob. Rain: 78%</span>
+                        </div>
+                    </div>
+
+                    <!-- 24-Hour Outlook -->
+                    <div class="glass-panel rounded-2xl p-5 flex flex-col justify-between border-l-4 border-emerald-400">
+                        <div>
+                            <div class="flex items-center justify-between text-xs text-slate-400">
+                                <span>+24 Hours Outlook</span>
+                                <span class="text-emerald-300 font-semibold">Synoptic Trend</span>
+                            </div>
+                            <div class="flex items-center gap-3 my-4">
+                                <div class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-xl">
+                                    <i id="pred-24h-icon" class="fa-solid fa-sun"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-2xl font-bold" id="pred-24h-temp">26.0 °C</h4>
+                                    <p class="text-xs text-slate-300 font-medium" id="pred-24h-desc">Clearing skies following front passage with crisp air mass.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-[11px] text-slate-400 pt-3 border-t border-white/10 flex items-center justify-between">
+                            <span>Expected Precip: 0.2 mm</span>
+                            <span>Stability: High</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Meteorological AI Analysis Box -->
+                <div class="glass-panel p-6 rounded-2xl flex flex-col gap-4 border border-cyan-500/30">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-sm">Meteorologist Automated Synthesis & Advisories</h4>
+                            <p class="text-xs text-slate-400">Real-time analysis based on sensor derivative rates ($dT/dt, dP/dt$).</p>
+                        </div>
+                    </div>
+                    <p class="text-sm text-slate-300 leading-relaxed bg-black/20 p-4 rounded-xl border border-white/5" id="meteorologist-synthesis">
+                        Analyzing sensor gradients... Barometric pressure is holding at 1013.2 hPa with stable relative humidity. No severe convective initiation detected within the immediate 50km research grid. Conditions are optimal for optical ceilometer and pyranometer calibration runs.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Time Override Simulation Modal -->
+    <div id="time-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="glass-panel-dark max-w-md w-full rounded-2xl p-6 border border-white/20 shadow-2xl flex flex-col gap-4">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-base flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-cyan-400"></i> Simulate Time of Day Theme
+                </h3>
+                <button onclick="closeTimeOverrideModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <p class="text-xs text-slate-300">Select a time period to instantly test the time-of-day color themes (Dawn, Morning, Afternoon, Dusk, Midnight):</p>
+            
+            <div class="grid grid-cols-1 gap-2">
+                <button onclick="applyTimeOverride(2)" class="px-4 py-2.5 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/60 border border-indigo-500/30 text-left text-xs font-semibold flex items-center justify-between transition-all">
+                    <span class="flex items-center gap-2"><i class="fa-solid fa-moon text-indigo-400"></i> Dawn (1:00 AM - 4:00 AM)</span>
+                    <span class="text-[10px] text-indigo-300 px-2 py-0.5 rounded bg-indigo-500/20">Dark Purple Theme</span>
+                </button>
+                <button onclick="applyTimeOverride(8)" class="px-4 py-2.5 rounded-xl bg-sky-950/60 hover:bg-sky-900/60 border border-sky-500/30 text-left text-xs font-semibold flex items-center justify-between transition-all">
+                    <span class="flex items-center gap-2"><i class="fa-solid fa-sun text-sky-400"></i> Morning (7:00 AM - 10:00 AM)</span>
+                    <span class="text-[10px] text-sky-300 px-2 py-0.5 rounded bg-sky-500/20">Dusk Blue-Grey Theme</span>
+                </button>
+                <button onclick="applyTimeOverride(13)" class="px-4 py-2.5 rounded-xl bg-amber-950/60 hover:bg-amber-900/60 border border-amber-500/30 text-left text-xs font-semibold flex items-center justify-between transition-all">
+                    <span class="flex items-center gap-2"><i class="fa-solid fa-cloud-sun text-amber-400"></i> Afternoon (1:00 PM - 4:00 PM)</span>
+                    <span class="text-[10px] text-amber-300 px-2 py-0.5 rounded bg-amber-500/20">Golden Solar Theme</span>
+                </button>
+                <button onclick="applyTimeOverride(18)" class="px-4 py-2.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 border border-rose-500/30 text-left text-xs font-semibold flex items-center justify-between transition-all">
+                    <span class="flex items-center gap-2"><i class="fa-solid fa-sunset text-rose-400"></i> Dusk (6:00 PM - 8:00 PM)</span>
+                    <span class="text-[10px] text-rose-300 px-2 py-0.5 rounded bg-rose-500/20">Twilight Crimson Theme</span>
+                </button>
+                <button onclick="resetTimeOverride()" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-center text-xs font-medium transition-all mt-2">
+                    Resume Real System Clock
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="glass-panel border-t border-white/10 px-6 py-4 text-center text-xs text-slate-400 mt-auto">
+        AeroMetrics Weather Suite & Research Simulator • Built for Atmospheric Engineers & Meteorologists
+    </footer>
+
+    <script>
+        // Simulation State
+        let systemActive = true;
+        let manualHourOverride = null;
+        let currentTheme = 'midnight';
+        let activeLocation = {
+            name: "Jakarta Station",
+            country: "Indonesia",
+            timezoneOffset: 7, // UTC+7 (WIB)
+            monthlyBaseTemps: [ 27.2, 27.0, 27.5, 28.0, 28.3, 28.1, 27.8, 28.0, 28.2, 28.1, 27.8, 27.4 ], // Jakarta tropical monthly averages (°C)
+            baseHumidity: 80.0,
+            basePressure: 1009.8
+        };
+
+        // Preset location database with month-by-month temperature curves
+        const globalLocationsDB = [
+            { 
+                name: "Jakarta Station", country: "Indonesia", offset: 7, 
+                monthlyTemps: [27.2, 27.0, 27.5, 28.0, 28.3, 28.1, 27.8, 28.0, 28.2, 28.1, 27.8, 27.4], 
+                hum: 80, pres: 1009.8 
+            },
+            { 
+                name: "Moscow Atmospheric Station", country: "Russia", offset: 3, 
+                monthlyTemps: [-6.5, -5.8, -1.0, 6.7, 13.5, 17.5, 19.8, 17.6, 12.0, 5.8, -0.8, -4.8], 
+                hum: 78, pres: 1012.4 
+            },
+            { 
+                name: "Geneva Observatory", country: "Switzerland", offset: 2, 
+                monthlyTemps: [1.8, 3.2, 7.5, 11.2, 15.4, 19.2, 21.6, 21.0, 16.8, 11.8, 6.2, 2.6], 
+                hum: 68, pres: 1014.1 
+            },
+            { 
+                name: "Tokyo Atmospheric Lab", country: "Japan", offset: 9, 
+                monthlyTemps: [5.4, 6.1, 9.4, 14.3, 18.8, 22.1, 25.7, 27.4, 23.9, 18.5, 13.0, 7.8], 
+                hum: 70, pres: 1009.5 
+            },
+            { 
+                name: "London Weather Station", country: "United Kingdom", offset: 1, 
+                monthlyTemps: [5.2, 5.5, 7.6, 9.9, 13.3, 16.5, 18.7, 18.5, 15.7, 12.0, 8.0, 5.7], 
+                hum: 81, pres: 1012.0 
+            },
+            { 
+                name: "New York Research Tower", country: "USA", offset: -4, 
+                monthlyTemps: [0.5, 1.8, 5.7, 11.5, 17.0, 22.2, 25.2, 24.5, 20.4, 14.2, 8.8, 3.2], 
+                hum: 62, pres: 1016.3 
+            },
+            { 
+                name: "Sydney Meteorological Post", country: "Australia", offset: 10, 
+                monthlyTemps: [23.5, 23.4, 22.1, 19.0, 16.1, 13.8, 13.0, 14.3, 16.7, 18.8, 20.4, 22.2], 
+                hum: 65, pres: 1018.5 
+            },
+            { 
+                name: "Cairo Desert Station", country: "Egypt", offset: 3, 
+                monthlyTemps: [13.8, 15.2, 18.1, 22.5, 26.5, 29.5, 30.8, 30.6, 28.2, 24.8, 19.8, 15.3], 
+                hum: 42, pres: 1007.8 
+            },
+            { 
+                name: "Reykjavik Arctic Station", country: "Iceland", offset: 0, 
+                monthlyTemps: [-0.5, -0.4, 0.5, 2.9, 6.3, 9.3, 11.2, 10.6, 7.7, 4.1, 1.1, -0.2], 
+                hum: 82, pres: 998.2 
+            },
+            { 
+                name: "Singapore Equatorial Unit", country: "Singapore", offset: 8, 
+                monthlyTemps: [26.8, 27.3, 27.8, 28.2, 28.3, 28.1, 27.9, 27.9, 27.6, 27.6, 27.1, 26.8], 
+                hum: 84, pres: 1008.9 
+            },
+            { 
+                name: "Sao Paulo Station", country: "Brazil", offset: -3, 
+                monthlyTemps: [22.5, 22.8, 22.1, 20.2, 17.6, 16.5, 15.9, 17.1, 18.2, 19.5, 20.6, 21.8], 
+                hum: 74, pres: 1015.0 
+            }
+        ];
+
+        // Dynamic sensor variables
+        let temp = 28.0;
+        let humidity = 80.0;
+        let pressure = 1009.8;
+        let windSpeed = 3.5;
+        let windDir = 225;
+        let rainRate = 0.0;
+        let rainAccumulated = 2.4;
+        // History Records Array
+        let historyLogs = [];
+
+        // Chart.js Instance
+        let telemetryChart = null;
+        const maxDataPoints = 20;
+        let chartLabels = [];
+        let chartTempData = [];
+        let chartBaroData = [];
+
+        function handleSearchKeyPress(e) {
+            if (e.key === 'Enter') {
+                executeGlobalSearch();
+            }
+        }
+
+        function executeGlobalSearch() {
+            const query = document.getElementById('global-search-input').value.trim();
+            if (query) searchAndSetLocation(query);
+        }
+
+        function executeGlobalSearchMobile() {
+            const query = document.getElementById('global-search-input-mobile').value.trim();
+            if (query) searchAndSetLocation(query);
+        }
+
+        function searchAndSetLocation(query) {
+            const match = globalLocationsDB.find(loc => 
+                loc.name.toLowerCase().includes(query.toLowerCase()) || 
+                loc.country.toLowerCase().includes(query.toLowerCase())
+            );
+
+            if (match) {
+                activeLocation = {
+                    name: `${match.name}, ${match.country}`,
+                    country: match.country,
+                    timezoneOffset: match.offset,
+                    monthlyBaseTemps: match.monthlyTemps,
+                    baseHumidity: match.hum,
+                    basePressure: match.pres
+                };
+            } else {
+                // Synthesize custom location on the fly with seasonal curve
+                const hash = query.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                const synthesizedOffset = (hash % 25) - 12; // -12 to +12
+                const baseMid = (hash % 25) - 2;
+                const monthlyCurve = Array.from({length: 12}, (_, m) => baseMid + Math.sin((m - 3) * Math.PI / 6) * 10);
+                activeLocation = {
+                    name: `${query.charAt(0).toUpperCase() + query.slice(1)} Station`,
+                    country: "Global Research Grid",
+                    timezoneOffset: synthesizedOffset,
+                    monthlyBaseTemps: monthlyCurve,
+                    baseHumidity: 40 + (hash % 50),
+                    basePressure: 995 + (hash % 30)
+                };
+            }
+
+            // Immediately recalculate target temperature for current month/time
+            recalculateAtmosphericState();
+
+            // Clear input fields
+            document.getElementById('global-search-input').value = '';
+            const mobileInput = document.getElementById('global-search-input-mobile');
+            if (mobileInput) mobileInput.value = '';
+
+            // Inject log entry
+            historyLogs.unshift({
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                temp: temp.toFixed(1),
+                humidity: humidity.toFixed(1),
+                pressure: pressure.toFixed(1),
+                wind: windSpeed.toFixed(1),
+                rain: rainRate.toFixed(1),
+                note: `Relocated station to ${activeLocation.name}`
+            });
+
+            updateSimulation();
+        }
+
+        // Calculates location temperature based on real Month and Diurnal (Hour of Day) solar cycles
+        function recalculateAtmosphericState() {
+            const now = new Date();
+            const currentMonth = now.getUTCMonth(); // 0 - 11
+            const localHours = (now.getUTCHours() + activeLocation.timezoneOffset + 24) % 24;
+            const hour = manualHourOverride !== null ? manualHourOverride : localHours;
+
+            // Get monthly climatological mean temperature
+            const seasonalMean = activeLocation.monthlyBaseTemps[currentMonth];
+
+            // Diurnal temperature swing offset (coolest around 05:00, warmest around 14:00)
+            const diurnalAmplitude = 3.5; // +/- 3.5 °C shift across day/night
+            const solarAngle = ((hour - 14) / 24) * 2 * Math.PI;
+            const diurnalOffset = Math.cos(solarAngle) * diurnalAmplitude;
+
+            // Update state temperature target base
+            const targetTemp = seasonalMean + diurnalOffset;
+            
+            // Smoothly ease current temp towards real seasonal/diurnal target
+            temp = temp + (targetTemp - temp) * 0.2;
+            humidity = activeLocation.baseHumidity + Math.sin((hour - 6) * Math.PI / 12) * -8;
+            pressure = activeLocation.basePressure;
+        }
+
+        // Initialize App on Window Load
+        window.onload = function() {
+            recalculateAtmosphericState();
+            initChart();
+            seedHistoryLogs();
+            updateSimulation();
+            setInterval(simulationTick, 1500); // 1.5s tick for smooth live update
+        };
+
+        // Tab Switching Logic
+        function switchTab(tabId) {
+            ['live', 'history', 'prediction'].forEach(t => {
+                document.getElementById(`tab-content-${t}`).classList.add('hidden');
+                document.getElementById(`tab-content-${t}`).classList.remove('flex');
+                document.getElementById(`tab-btn-${t}`).className = "px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-2 border border-transparent";
+            });
+
+            const activeContent = document.getElementById(`tab-content-${tabId}`);
+            activeContent.classList.remove('hidden');
+            activeContent.classList.add('flex');
+
+            document.getElementById(`tab-btn-${tabId}`).className = "px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 flex items-center gap-2 shadow-sm";
+
+            if(tabId === 'history') {
+                renderHistoryTable();
+            }
+        }
+
+        // Time Override Handlers
+        function openTimeOverrideModal() {
+            document.getElementById('time-modal').classList.remove('hidden');
+            document.getElementById('time-modal').classList.add('flex');
+        }
+        function closeTimeOverrideModal() {
+            document.getElementById('time-modal').classList.add('hidden');
+            document.getElementById('time-modal').classList.remove('flex');
+        }
+        function applyTimeOverride(hour) {
+            manualHourOverride = hour;
+            closeTimeOverrideModal();
+            updateSimulation();
+        }
+        function resetTimeOverride() {
+            manualHourOverride = null;
+            closeTimeOverrideModal();
+            updateSimulation();
+        }
+
+        // Toggle System Power
+        function toggleSystemState() {
+            systemActive = !systemActive;
+            const btn = document.getElementById('power-btn');
+            const txt = document.getElementById('power-txt');
+            if(systemActive) {
+                btn.className = "px-3.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center gap-2 transition-all";
+                txt.innerText = "System Active";
+            } else {
+                btn.className = "px-3.5 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 text-xs font-semibold flex items-center gap-2 transition-all";
+                txt.innerText = "System Paused";
+            }
+        }
+
+        // Seed initial history logs
+        function seedHistoryLogs() {
+            const now = new Date();
+            const month = now.getUTCMonth();
+            const baseMonthTemp = activeLocation.monthlyBaseTemps[month];
+
+            for(let i=10; i>0; i--) {
+                const pastTime = new Date(now.getTime() - i * 3600000);
+                const pastHour = (pastTime.getUTCHours() + activeLocation.timezoneOffset + 24) % 24;
+                const diurnal = Math.cos(((pastHour - 14) / 24) * 2 * Math.PI) * 3.5;
+                const sampledTemp = baseMonthTemp + diurnal + (Math.random() - 0.5) * 0.8;
+
+                historyLogs.push({
+                    time: pastTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    temp: sampledTemp.toFixed(1),
+                    humidity: (humidity + Math.sin(pastHour) * 4).toFixed(1),
+                    pressure: (pressure + (i%3)*0.4 - 0.6).toFixed(1),
+                    wind: (3.5 + Math.random()*2).toFixed(1),
+                    rain: (i === 3 || i === 4) ? '0.4' : '0.0',
+                    note: (i === 3) ? 'Seasonal precipitation event' : 'Nominal atmospheric state'
+                });
+            }
+        }
+
+        // Main Simulation Tick
+        function simulationTick() {
+            if(!systemActive) return;
+
+            // Continually re-evaluate climatological & diurnal solar baseline
+            recalculateAtmosphericState();
+
+            // Introduce slight natural random sensor micro-noise
+            temp += (Math.random() - 0.5) * 0.08;
+            humidity += (Math.random() - 0.5) * 0.4;
+            humidity = Math.max(15, Math.min(99, humidity));
+            pressure += (Math.random() - 0.49) * 0.15;
+            windSpeed += (Math.random() - 0.5) * 0.3;
+            windSpeed = Math.max(0.5, Math.min(18.0, windSpeed));
+            windDir = (windDir + (Math.random() - 0.5) * 8 + 360) % 360;
+
+            updateSimulation();
+            updateChart();
+        }
+
+        function updateSimulation() {
+            const utcNow = new Date();
+            // Calculate local station time based on timezone offset
+            const localHours = (utcNow.getUTCHours() + activeLocation.timezoneOffset + 24) % 24;
+            let currentHour = manualHourOverride !== null ? manualHourOverride : localHours;
+            
+            // Format time badge
+            const timeStr = manualHourOverride !== null ? 
+                `${manualHourOverride.toString().padStart(2, '0')}:00 (Simulated)` : 
+                `${currentHour.toString().padStart(2, '0')}:${utcNow.getUTCMinutes().toString().padStart(2, '0')} Local Time (UTC${activeLocation.timezoneOffset >= 0 ? '+' : ''}${activeLocation.timezoneOffset})`;
+            
+            document.getElementById('current-time-label').innerText = timeStr;
+            document.getElementById('hero-location-name').innerHTML = `<i class="fa-solid fa-location-dot mr-1.5"></i> ${activeLocation.name}`;
+
+            // Determine Time of Day Theme
+            let themeName = "Midnight";
+            let bodyBg = "bg-slate-950";
+            if (currentHour >= 1 && currentHour <= 4) {
+                themeName = "Dawn (Dark Purple)";
+                bodyBg = "bg-purple-950";
+            } else if (currentHour >= 7 && currentHour <= 10) {
+                themeName = "Morning (Dusk Blue-Grey)";
+                bodyBg = "bg-slate-800";
+            } else if (currentHour >= 11 && currentHour <= 17) {
+                themeName = "Afternoon (Golden Solar)";
+                bodyBg = "bg-slate-900";
+            } else if (currentHour >= 18 && currentHour <= 20) {
+                themeName = "Dusk (Twilight Crimson)";
+                bodyBg = "bg-rose-950";
+            } else {
+                themeName = "Midnight (Deep Slate)";
+                bodyBg = "bg-slate-950";
+            }
+
+            document.getElementById('app-body').className = `h-full transition-colors duration-1000 ${bodyBg} text-slate-100 overflow-x-hidden flex flex-col`;
+            document.getElementById('current-theme-name').innerText = themeName;
+
+            // Update Sensor DOM Elements
+            document.getElementById('hero-temp').innerText = temp.toFixed(1);
+            document.getElementById('hero-humidity').innerText = `${humidity.toFixed(0)}%`;
+            document.getElementById('hero-pressure').innerText = pressure.toFixed(1);
+            document.getElementById('hero-wind-speed').innerText = windSpeed.toFixed(1);
+            document.getElementById('hero-wind-dir').innerText = `${getWindDirectionText(windDir)} (${windDir.toFixed(0)}°)`;
+            document.getElementById('hero-rain').innerText = rainRate.toFixed(1);
+
+            // Detailed Sensor Cards
+            document.getElementById('sensor-temp-val').innerText = `${temp.toFixed(2)} °C`;
+            document.getElementById('sensor-temp-res').innerText = `${(100 + temp * 0.385).toFixed(2)} Ω`;
+            document.getElementById('sensor-hum-val').innerText = `${humidity.toFixed(1)} %`;
+            document.getElementById('sensor-dew-val').innerText = `${(temp - ((100 - humidity)/5)).toFixed(1)} °C`;
+            document.getElementById('sensor-baro-val').innerText = `${pressure.toFixed(1)} hPa`;
+            document.getElementById('sensor-wind-val').innerText = windSpeed.toFixed(1);
+            document.getElementById('sensor-dir-val').innerText = `${windDir.toFixed(0)}° (${getWindDirectionText(windDir)})`;
+            document.getElementById('sensor-rain-val').innerText = rainRate.toFixed(1);
+            document.getElementById('sensor-rain-acc').innerText = `${rainAccumulated.toFixed(1)} mm`;
+
+            // Update Predictions based on current pressure tendency
+            updatePredictions();
+        }
+
+        function getWindDirectionText(deg) {
+            const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+            return dirs[Math.round((deg / 22.5)) % 16];
+        }
+
+        function triggerSensorSpike() {
+            temp += 2.5;
+            pressure -= 4.0;
+            rainRate = 12.5;
+            rainAccumulated += 0.8;
+            updateSimulation();
+            
+            // Push to history log
+            historyLogs.unshift({
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                temp: temp.toFixed(1),
+                humidity: humidity.toFixed(1),
+                pressure: pressure.toFixed(1),
+                wind: windSpeed.toFixed(1),
+                rain: rainRate.toFixed(1),
+                note: `Injected Convective Event at ${activeLocation.name}`
+            });
+
+            // Reset rain rate after a moment in simulation
+            setTimeout(() => { rainRate = 0.0; }, 4000);
+        }
+
+        // Initialize Chart.js
+        function initChart() {
+            const ctx = document.getElementById('telemetryChart').getContext('2d');
+            const now = new Date();
+            for(let i=maxDataPoints; i>0; i--) {
+                const d = new Date(now.getTime() - i * 2000);
+                chartLabels.push(d.toLocaleTimeString([], {minute: '2-digit', second: '2-digit'}));
+                chartTempData.push(24 + Math.random());
+                chartBaroData.push(101.3 + (Math.random()*0.2));
+            }
+
+            telemetryChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: chartLabels,
+                    datasets: [
+                        {
+                            label: 'Temperature (°C)',
+                            data: chartTempData,
+                            borderColor: '#f97316',
+                            backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Pressure (hPa / 10)',
+                            data: chartBaroData,
+                            borderColor: '#c084fc',
+                            backgroundColor: 'rgba(192, 132, 252, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8', font: { size: 10 } }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#f97316', font: { size: 10 } }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: '#c084fc', font: { size: 10 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChart() {
+            if(!telemetryChart) return;
+            const nowTime = new Date().toLocaleTimeString([], {minute: '2-digit', second: '2-digit'});
+            
+            chartLabels.push(nowTime);
+            chartTempData.push(temp);
+            chartBaroData.push(pressure / 10);
+
+            if(chartLabels.length > maxDataPoints) {
+                chartLabels.shift();
+                chartTempData.shift();
+                chartBaroData.shift();
+            }
+            telemetryChart.update('none');
+        }
+
+        function renderHistoryTable() {
+            const tbody = document.getElementById('history-table-body');
+            tbody.innerHTML = '';
+            
+            // Add current state if log is empty
+            if(historyLogs.length === 0) {
+                seedHistoryLogs();
+            }
+
+            historyLogs.forEach(log => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-white/5 transition-colors border-b border-white/5";
+                tr.innerHTML = `
+                    <td class="p-3.5 font-medium text-slate-200"><i class="fa-regular fa-clock text-cyan-400 mr-1.5"></i> ${log.time}</td>
+                    <td class="p-3.5 text-orange-300 font-semibold">${log.temp} °C</td>
+                    <td class="p-3.5 text-blue-300">${log.humidity} %</td>
+                    <td class="p-3.5 text-purple-300">${log.pressure} hPa</td>
+                    <td class="p-3.5 text-cyan-300">${log.wind} m/s</td>
+                    <td class="p-3.5 text-indigo-300">${log.rain} mm</td>
+                    <td class="p-3.5 text-slate-300">${log.note}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function clearHistoryLog() {
+            historyLogs = [];
+            renderHistoryTable();
+        }
+
+        function exportHistoryCSV() {
+            let csv = "Timestamp,Temperature,Humidity,Pressure,WindSpeed,Precipitation,Notes\n";
+            historyLogs.forEach(l => {
+                csv += `${l.time},${l.temp},${l.humidity},${l.pressure},${l.wind},${l.rain},"${l.note}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `aerometrics_sensor_archive_${new Date().toISOString().slice(0,10)}.csv`);
+            a.click();
+        }
+
+        function updatePredictions() {
+            // Predict based on pressure tendency
+            let synopticSynthesis = "";
+            if (pressure < 1010) {
+                document.getElementById('pred-3h-icon').className = "fa-solid fa-cloud-rain";
+                document.getElementById('pred-3h-desc').className = "text-xs text-blue-300 font-medium";
+                document.getElementById('pred-3h-desc').innerText = "Low pressure trough advancing; increased precipitation probability.";
+                synopticSynthesis = `Low barometric pressure reading at ${activeLocation.name} indicates an active synoptic trough overhead. Expect intermittent rain showers and gusty ultrasonic wind vectors over the next 3 to 6 hours.`;
+            } else if (pressure > 1018) {
+                document.getElementById('pred-3h-icon').className = "fa-solid fa-sun";
+                document.getElementById('pred-3h-desc').className = "text-xs text-amber-300 font-medium";
+                document.getElementById('pred-3h-desc').innerText = "High pressure ridge stabilizing air mass; clear skies prevailing.";
+                synopticSynthesis = `High pressure anticyclone building across ${activeLocation.name}. Stable thermodynamic profile with minimal convective cloud development. Ideal conditions for solar pyranometer irradiance logging.`;
+            } else {
+                document.getElementById('pred-3h-icon').className = "fa-solid fa-cloud-sun";
+                document.getElementById('pred-3h-desc').className = "text-xs text-slate-300 font-medium";
+                document.getElementById('pred-3h-desc').innerText = "Nominal pressure gradient with stable diurnal temperature curve.";
+                synopticSynthesis = `Nominal barometric gradient and steady relative humidity at ${activeLocation.name}. Diurnal heating cycle is driving gentle thermal breezes. No severe weather advisories in effect for the current research quadrant.`;
+            }
+            document.getElementById('meteorologist-synthesis').innerText = synopticSynthesis;
+        }
+    </script>
+</body>
+</html>
